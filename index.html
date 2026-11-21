@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="nl"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#102b36"><title>Hardloopweer Leeuwarden</title>
+<style>
+:root{color-scheme:dark;--bg:#0c2029;--panel:#153440;--muted:#a9c0c8;--text:#f3f8f9;--accent:#a8e0c2}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;padding:24px 16px calc(28px + env(safe-area-inset-bottom));background:radial-gradient(ellipse at 50% -10%,#24505a 0%,var(--bg) 55%);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
+main{width:min(100%,560px);margin:auto}header{padding:12px 4px 22px}.eyebrow{color:var(--accent);text-transform:uppercase;letter-spacing:.13em;font-size:11px;font-weight:750}
+h1{margin:8px 0 4px;font-size:clamp(27px,7vw,36px);letter-spacing:-.04em}.sub,.small,footer{color:var(--muted)}.sub{font-size:14px}
+.panel{background:linear-gradient(145deg,#1c434e,#122f3a);border:1px solid #ffffff19;border-radius:22px;padding:20px;margin:12px 0;box-shadow:0 12px 32px #0003}
+.status{display:flex;align-items:center;gap:10px;color:var(--accent);font-weight:750;font-size:18px}.dot{width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 14px currentColor;flex:none}
+.status-note{color:var(--muted);font-size:13px;margin:8px 0 0 20px;line-height:1.5}.metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:17px}
+.metric{background:#0002;border-radius:15px;padding:14px;min-height:94px}.metric-label{color:var(--muted);font-size:12px}.metric-value{font-size:27px;font-weight:750;letter-spacing:-.04em;margin-top:7px}.metric-detail{color:var(--muted);font-size:11px;margin-top:2px}
+h2{font-size:17px;margin:0 0 12px}.clothes{font-size:15px;line-height:1.55;margin:0}.clothes strong{color:var(--accent)}.small{font-size:12px;line-height:1.5}
+.toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:16px 2px 0}button{border:0;border-radius:999px;padding:12px 17px;color:#102b36;background:var(--accent);font-weight:750;font-size:14px}button:disabled{opacity:.6}
+#updated{color:var(--muted);font-size:11px;text-align:right}#error{display:none;color:#ffd6c9;background:#822a2333;border:1px solid #ffb4a040;border-radius:14px;padding:13px;margin-top:12px;font-size:13px;line-height:1.5}
+footer{text-align:center;font-size:11px;margin:22px 8px 0}@media(min-width:480px){.panel{padding:23px}.metrics{grid-template-columns:repeat(4,minmax(0,1fr))}.metric{min-height:105px}.metric-value{font-size:25px}}
+</style></head><body><main>
+<header><div class="eyebrow">Jouw dagelijkse loopadvies</div><h1>Hardloopweer</h1><div class="sub">Leeuwarden, Friesland · actuele omstandigheden</div></header>
+<section class="panel" aria-live="polite"><div class="status"><span class="dot" id="dot"></span><span id="verdict">Weer ophalen…</span></div><p class="status-note" id="note">De actuele weersgegevens worden geladen.</p>
+<div class="metrics">
+<div class="metric"><div class="metric-label">Temperatuur</div><div class="metric-value" id="temp">—</div><div class="metric-detail">actuele temperatuur</div></div>
+<div class="metric"><div class="metric-label">Wind</div><div class="metric-value" id="wind">—</div><div class="metric-detail">kilometer per uur</div></div>
+<div class="metric"><div class="metric-label">Beaufort</div><div class="metric-value" id="bf">—</div><div class="metric-detail" id="windlabel">windschaal</div></div>
+<div class="metric"><div class="metric-label">Neerslag</div><div class="metric-value" id="rain">—</div><div class="metric-detail">actuele neerslag (mm)</div></div></div></section>
+<section class="panel"><h2>Kledingadvies</h2><p class="clothes" id="clothes">Het kledingadvies verschijnt zodra de temperatuur bekend is.</p><p class="small" style="margin:12px 0 0">Gebaseerd op jouw persoonlijke temperatuurdrempels.</p></section>
+<div id="error" role="alert"></div><div class="toolbar"><button id="refresh">↻ Vernieuw weer</button><div id="updated">Nog niet bijgewerkt</div></div>
+<footer>Weergegevens: Open-Meteo · Automatische update elke 15 minuten</footer></main>
+<script>
+(()=>{const $=id=>document.getElementById(id);const api="https://api.open-meteo.com/v1/forecast?latitude=53.2012&longitude=5.7999&current=temperature_2m,wind_speed_10m,precipitation&wind_speed_unit=kmh&timezone=Europe%2FAmsterdam";
+function bf(v){return v<1?0:v<6?1:v<12?2:v<20?3:v<29?4:v<39?5:v<50?6:v<62?7:v<75?8:v<89?9:v<103?10:v<118?11:12}
+function clothes(t){if(t>15)return"<strong>Korte broek en shirt.</strong>";if(t>10)return"<strong>Korte broek en vest.</strong>";if(t>5)return"<strong>Thermo-ondergoed, vest en handschoenen.</strong>";if(t>0)return"<strong>Thermo-ondergoed, vest, handschoenen en kol.</strong>";return"<strong>Thermo-ondergoed, vest, handschoenen, kol en thermoshirt.</strong>"}
+async function load(){let btn=$("refresh"),err=$("error");btn.disabled=true;btn.textContent="Bezig…";err.style.display="none";$("verdict").textContent="Weer ophalen…";let controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
+try{let res=await fetch(api,{cache:"no-store",signal:controller.signal});if(!res.ok)throw Error("Weerbron gaf foutcode "+res.status);let d=await res.json();if(!d.current)throw Error("Geen actuele metingen ontvangen");let c=d.current,t=Number(c.temperature_2m),w=Number(c.wind_speed_10m),r=Number(c.precipitation),b=bf(w);
+$("temp").textContent=t.toFixed(1)+"°C";$("wind").textContent=Math.round(w)+" km/u";$("bf").textContent=b;$("rain").textContent=r.toFixed(1)+" mm";$("windlabel").textContent=["stil","zwak","zwak","matig","matig","vrij krachtig","krachtig","hard","stormachtig","storm","zware storm","zeer zware storm","orkaan"][b];$("clothes").innerHTML=clothes(t);
+if(b<=1){$("verdict").textContent="Goed hardloopweer";$("note").textContent="Weinig wind: fijne omstandigheden om te gaan hardlopen."}else if(b<=3){$("verdict").textContent="Prima hardloopweer";$("note").textContent="Er staat wat wind, maar de omstandigheden zijn doorgaans prima."}else{$("verdict").textContent="Houd rekening met de wind";$("note").textContent="Windkracht "+b+" Beaufort kan merkbaar meer weerstand geven."}
+$("dot").style.color=b<=3?"#a8e0c2":"#ffd18a";$("updated").textContent="Bijgewerkt: "+new Date().toLocaleTimeString("nl-NL",{hour:"2-digit",minute:"2-digit"});
+}catch(e){$("verdict").textContent="Weer niet beschikbaar";$("note").textContent="De pagina werkt, maar kon de actuele weersgegevens niet ophalen.";$("error").textContent=e.name==="AbortError"?"Het ophalen duurde langer dan 12 seconden. Controleer je internetverbinding en probeer opnieuw.":"Er ging iets mis bij het ophalen. Controleer je internetverbinding en probeer opnieuw. ("+e.message+")";err.style.display="block";$("updated").textContent="Niet bijgewerkt"}
+finally{clearTimeout(timer);btn.disabled=false;btn.textContent="↻ Vernieuw weer"}}
+$("refresh").addEventListener("click",load);load();setInterval(load,900000)})();
+</script></body></html>
