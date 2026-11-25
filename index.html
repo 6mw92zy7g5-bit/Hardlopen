@@ -44,7 +44,62 @@ function loadLeaflet(){if(window.L)return Promise.resolve();return new Promise((
 function initMap(){if(!window.L)return;routeMap=L.map("routeMap").setView([place.lat,place.lon],13);L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"&copy; OpenStreetMap-bijdragers"}).addTo(routeMap);routeMap.setView([place.lat,place.lon],13);setTimeout(()=>routeMap.invalidateSize(),250)}
 function destination(lat,lon,distance,bearing){const R=6371000,br=bearing*Math.PI/180,p1=lat*Math.PI/180,l1=lon*Math.PI/180,d=distance/R;const p2=Math.asin(Math.sin(p1)*Math.cos(d)+Math.cos(p1)*Math.sin(d)*Math.cos(br));const l2=l1+Math.atan2(Math.sin(br)*Math.sin(d)*Math.cos(p1),Math.cos(d)-Math.sin(p1)*Math.sin(p2));return[p2*180/Math.PI,l2*180/Math.PI]}
 let routeGeneration=0;
-async function generateRoute(){const btn=$("makeRoute");btn.disabled=true;btn.textContent="Route maken…";$("routeInfo").textContent="Een rondje wordt berekend…";try{if(!window.L||!routeMap)throw Error("De kaart is nog niet klaar. Probeer opnieuw.");const attempt=++routeGeneration,target=selectedKm;let best=null;const offsets=[(attempt*53)%360,(attempt*53+73)%360,(attempt*53+149)%360,(attempt*53+227)%360,(attempt*53+301)%360,(attempt*53+337)%360];const scales=[0.82,0.95,1.08,1.22,0.72,1.35];for(let n=0;n<offsets.length;n++){const radius=target*1000/(3.25+(n%3)*0.16)*scales[n];const bearings=[offsets[n],offsets[n]+120+(n*7)%35,offsets[n]+240+(n*11)%45];const waypoints=bearings.map(b=>destination(place.lat,place.lon,radius,b));const coords=[[place.lon,place.lat],...waypoints.map(p=>[p[1],p[0]]),[place.lon,place.lat]].map(p=>p.join(",")).join(";");const url="https://routing.openstreetmap.de/routed-foot/route/v1/driving/"+coords+"?overview=full&geometries=geojson&steps=false";try{const response=await fetch(url);if(!response.ok)continue;const data=await response.json();if(data.code!=="Ok"||!data.routes?.length)continue;const route=data.routes[0],km=route.distance/1000,geometry=route.geometry.coordinates;if(!geometry||geometry.length<3)continue;const first=geometry[0],last=geometry[geometry.length-1];if(Math.hypot(first[0]-last[0],first[1]-last[1])>0.0005)continue;const candidate={route,km};if(!best||Math.abs(km-target)<Math.abs(best.km-target))best=candidate;if(Math.abs(km-target)<=1)break}catch(e){continue}}if(!best)throw Error("Er kon geen rondje worden berekend. Controleer je verbinding en probeer opnieuw.");const latlngs=best.route.geometry.coordinates.map(p=>[p[1],p[0]]);if(routeLayer)routeMap.removeLayer(routeLayer);if(startMarker)routeMap.removeLayer(startMarker);routeLayer=L.polyline(latlngs,{color:"#159b78",weight:5,opacity:.9}).addTo(routeMap);startMarker=L.marker([place.lat,place.lon]).addTo(routeMap).bindPopup("Start / finish");routeMap.fitBounds(routeLayer.getBounds(),{padding:[24,24]});const diff=best.km-target;$("routeInfo").textContent="Rondje: "+best.km.toFixed(2)+" km (gekozen: "+target+" km; verschil: "+(diff>0?"+":"")+diff.toFixed(2)+" km). Start en finish liggen bij elkaar. De planner kiest de best passende route die gevonden wordt; afstand kan meer dan 1 km afwijken als er lokaal weinig paden zijn.";}catch(e){$("routeInfo").textContent=e.message+" Probeer opnieuw of kies een andere afstand."}finally{btn.disabled=false;btn.textContent="Genereer route"}}
+async function generateRoute(){
+ const btn=$("makeRoute");btn.disabled=true;btn.textContent="Route maken…";$("routeInfo").textContent="Een echt rondje wordt berekend…";
+ try{
+  if(!window.L||!routeMap)throw Error("De kaart is nog niet klaar. Probeer opnieuw.");
+  const attempt=++routeGeneration,target=selectedKm,tolerance=1;
+  const baseAngle=(attempt*47+Math.random()*360)%360;
+  const factors=[0.68,0.82,0.96,1.10,1.24,0.56,1.36,0.90];
+  let best=null;
+  for(let n=0;n<factors.length;n++){
+   const radius=(target*1000/(2*Math.PI))*factors[n];
+   const centerBearing=(baseAngle+n*43)%360;
+   const center=destination(place.lat,place.lon,radius,centerBearing);
+   const startBearing=(centerBearing+180)%360;
+   const direction=(n%2===0)?1:-1;
+   const coords=[[place.lon,place.lat]];
+   for(let j=1;j<8;j++){
+    const p=destination(center[0],center[1],radius,(startBearing+direction*j*45+360)%360);
+    coords.push([p[1],p[0]]);
+   }
+   coords.push([place.lon,place.lat]);
+   const coordinateString=coords.map(p=>p.join(",")).join(";");
+   const url="https://routing.openstreetmap.de/routed-foot/route/v1/driving/"+coordinateString+"?overview=full&geometries=geojson&steps=false";
+   try{
+    const response=await fetch(url);if(!response.ok)continue;
+    const data=await response.json();if(data.code!=="Ok"||!data.routes?.length)continue;
+    const route=data.routes[0],geometry=route.geometry?.coordinates,km=route.distance/1000;
+    if(!geometry||geometry.length<12)continue;
+    const first=geometry[0],last=geometry[geometry.length-1];
+    const endpointGap=Math.hypot((first[0]-last[0])*111000*Math.cos(place.lat*Math.PI/180),(first[1]-last[1])*111000);
+    if(endpointGap>30)continue;
+    const edges=new Set();let duplicateEdges=0,validEdges=0;
+    for(let k=1;k<geometry.length;k++){
+     const a=geometry[k-1],b=geometry[k];
+     const qa=a.map(v=>Math.round(v*100000)).join(","),qb=b.map(v=>Math.round(v*100000)).join(",");
+     if(qa===qb)continue;
+     const key=qa<qb?qa+"|"+qb:qb+"|"+qa;validEdges++;
+     if(edges.has(key))duplicateEdges++;else edges.add(key);
+    }
+    const overlap=validEdges?duplicateEdges/validEdges:1;
+    if(overlap>0.12)continue;
+    const candidate={route,km,overlap};
+    if(!best||Math.abs(km-target)<Math.abs(best.km-target))best=candidate;
+    if(Math.abs(km-target)<=tolerance&&overlap<0.04)break;
+   }catch(e){continue}
+  }
+  if(!best)throw Error("Geen bruikbaar rondje gevonden zonder veel dubbele stukken. Probeer opnieuw of kies een andere afstand.");
+  if(Math.abs(best.km-target)>tolerance)throw Error("Er is geen rondje gevonden tussen "+(target-tolerance)+" en "+(target+tolerance)+" km. De planner heeft ongeschikte routes met grote omwegen of dubbele stukken overgeslagen.");
+  const latlngs=best.route.geometry.coordinates.map(p=>[p[1],p[0]]);
+  if(routeLayer)routeMap.removeLayer(routeLayer);if(startMarker)routeMap.removeLayer(startMarker);
+  routeLayer=L.polyline(latlngs,{color:"#159b78",weight:5,opacity:.9}).addTo(routeMap);
+  startMarker=L.marker([place.lat,place.lon]).addTo(routeMap).bindPopup("Start / finish");
+  routeMap.fitBounds(routeLayer.getBounds(),{padding:[24,24]});
+  $("routeInfo").textContent="Rondje: "+best.km.toFixed(2)+" km (gekozen: "+target+" km). Start en finish bij je locatie. De route is gecontroleerd op dubbele wegsegmenten; een klein gedeeld stuk kan nodig zijn om terug te keren naar de start.";
+ }catch(e){$("routeInfo").textContent=e.message+" Probeer opnieuw; een andere routevariant kan wel beschikbaar zijn."}
+ finally{btn.disabled=false;btn.textContent="Genereer route"}
+}
 document.querySelectorAll(".route-choice").forEach(b=>b.addEventListener("click",()=>{selectedKm=Number(b.dataset.km);document.querySelectorAll(".route-choice").forEach(x=>x.classList.toggle("active",x===b));}));
 $("makeRoute").addEventListener("click",generateRoute);
 $("locate").addEventListener("click",locate);$("refresh").addEventListener("click",load);$("locationLabel").textContent=place.label==="Jouw opgeslagen locatie"?"Jouw opgeslagen locatie":"Standaardlocatie: Leeuwarden · stel je locatie één keer in";load();loadLeaflet().then(()=>{initMap();$("routeInfo").textContent="Kaart geladen. Kies een afstand en genereer je hardlooproute."}).catch(err=>{$("routeInfo").textContent=err.message+" De weerfunctie blijft beschikbaar; probeer eventueel een andere browser of schakel een contentblocker tijdelijk uit."});setInterval(load,900000)})();
