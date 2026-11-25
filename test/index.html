@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="nl"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#102b36"><meta name="apple-mobile-web-app-title" content="ReadyToRun Test"><title>ReadyToRun – Testversie PR #5</title>
+<style>
+:root{color-scheme:dark;--bg:#0c2029;--muted:#a9c0c8;--text:#f3f8f9;--accent:#a8e0c2;--blue:#75c8ee}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;padding:24px 16px calc(30px + env(safe-area-inset-bottom));background:radial-gradient(ellipse at 50% -10%,#24505a 0%,var(--bg) 55%);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
+main{width:min(100%,580px);margin:auto}.eyebrow{color:var(--accent);text-transform:uppercase;letter-spacing:.13em;font-size:11px;font-weight:750}h1{margin:8px 0 4px;font-size:clamp(28px,7vw,37px)}h2{font-size:17px;margin:0 0 12px}.sub,.small,footer{color:var(--muted)}.sub{font-size:14px}
+.panel{background:linear-gradient(145deg,#1c434e,#122f3a);border:1px solid #ffffff19;border-radius:22px;padding:20px;margin:14px 0;box-shadow:0 12px 32px #0002}
+.status{color:var(--accent);font-weight:750;font-size:19px}.status-note{color:var(--muted);font-size:13px;line-height:1.5;margin:8px 0 0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}.metric{background:#0002;border-radius:15px;padding:14px;min-height:92px}.label{color:var(--muted);font-size:12px}.value{font-size:25px;font-weight:750;margin-top:7px;letter-spacing:-.03em}.detail{color:var(--muted);font-size:11px;margin-top:3px}
+.clothes{font-size:15px;line-height:1.55;margin:0}.small{font-size:12px;line-height:1.5}
+button{border:0;border-radius:999px;padding:12px 17px;color:#102b36;background:var(--accent);font-weight:750;font-size:14px;cursor:pointer}button.secondary{background:#294b57;color:var(--text);border:1px solid #ffffff24}button:disabled{opacity:.6;cursor:wait}
+.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}#error{display:none;color:#ffd6c9;background:#822a2333;border:1px solid #ffb4a044;border-radius:13px;padding:13px;margin-top:12px;font-size:13px;line-height:1.5}#updated{color:var(--muted);font-size:11px;margin-top:12px}footer{text-align:center;font-size:11px;margin:22px 8px}
+.direction{display:grid;grid-template-columns:112px 1fr;gap:15px;align-items:center}.compass{width:112px;height:112px;position:relative;border-radius:50%;border:1px solid #ffffff2a;background:#0b252f;display:grid;place-items:center}.compass svg{width:100%;height:100%;position:absolute;inset:0}.compass .bearing{font-size:26px;font-weight:800;color:var(--accent);z-index:1}.direction-big{font-size:23px;font-weight:800;color:var(--accent);margin:3px 0}.direction-note{font-size:13px;color:var(--muted);line-height:1.45}
+@media(min-width:480px){.panel{padding:23px}.grid{grid-template-columns:repeat(4,1fr)}.metric{min-height:102px}.value{font-size:24px}}
+</style><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""><style>#routeMap{height:340px;border-radius:15px;overflow:hidden;background:#102b36;margin-top:14px}.route-options{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}.route-choice{background:#294b57;color:#f3f8f9;border:1px solid #ffffff30}.route-choice.active{background:#a8e0c2;color:#102b36;border-color:#a8e0c2}.route-info{font-size:13px;color:#d6e5e9;line-height:1.5;margin-top:10px}.leaflet-container{font:13px -apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif}</style></head><body><main>
+<div class="eyebrow">Jouw dagelijkse loopadvies</div><h1>Hardloopweer</h1><div class="sub" id="locationLabel">Standaardlocatie: Leeuwarden</div>
+<section class="panel" aria-live="polite"><div class="status" id="verdict">Weer ophalen…</div><p class="status-note" id="note">De actuele weersgegevens worden geladen.</p>
+<div class="grid">
+<div class="metric"><div class="label">Temperatuur</div><div class="value" id="temp">—</div><div class="detail">actueel</div></div>
+<div class="metric"><div class="label">Wind</div><div class="value" id="wind">—</div><div class="detail">kilometer per uur</div></div>
+<div class="metric"><div class="label">Beaufort</div><div class="value" id="bf">—</div><div class="detail">windschaal</div></div>
+<div class="metric"><div class="label">Neerslag</div><div class="value" id="rain">—</div><div class="detail">actueel (mm/u)</div></div>
+</div><div class="actions"><button id="locate" type="button">◎ Gebruik mijn locatie</button><button class="secondary" id="refresh" type="button">↻ Vernieuw weer</button></div><div id="updated">Nog niet bijgewerkt</div></section>
+<section class="panel"><h2>🏃 Looprichting met wind mee</h2><div class="direction"><div class="compass"><svg viewBox="0 0 112 112" aria-hidden="true"><circle cx="56" cy="56" r="48" fill="none" stroke="#ffffff35"/><text x="56" y="13" text-anchor="middle" fill="#dce9ec" font-size="9">N</text><text x="100" y="59" text-anchor="middle" fill="#dce9ec" font-size="9">O</text><text x="56" y="108" text-anchor="middle" fill="#dce9ec" font-size="9">Z</text><text x="12" y="59" text-anchor="middle" fill="#dce9ec" font-size="9">W</text><g id="needle"><path d="M56 22 L66 61 L56 55 L46 61 Z" fill="#a8e0c2"/><path d="M56 90 L66 51 L56 57 L46 51 Z" fill="#75c8ee"/></g><circle cx="56" cy="56" r="4" fill="#f3f8f9"/></svg><span class="bearing" id="runAbbr">—</span></div><div><div class="label">Adviesrichting</div><div class="direction-big" id="runDirection">Wordt berekend</div><div class="direction-note" id="directionNote">De windrichting wordt opgehaald.</div></div></div><p class="small" id="windFrom" style="margin:14px 0 0">Windrichting wordt opgehaald…</p></section>
+<section class="panel"><h2>Kledingadvies</h2><p class="clothes" id="clothes">Wordt getoond zodra de temperatuur bekend is.</p><p class="small">Gebaseerd op jouw persoonlijke temperatuurrichtlijnen.</p></section><div id="error" role="alert"></div>
+<section class="panel" id="routes"><h2>🗺️ Kies je hardloopafstand</h2><p class="small">Genereer een rondje vanaf je huidige of opgeslagen locatie. De route volgt wandelpaden en wegen uit OpenStreetMap.</p><div class="route-options"><button class="route-choice active" data-km="5">5 km</button><button class="route-choice" data-km="10">10 km</button><button class="route-choice" data-km="15">15 km</button></div><button id="makeRoute" type="button">Genereer route</button><div id="routeMap" aria-label="Kaart met hardlooproute"></div><div class="route-info" id="routeInfo">Kies 5, 10 of 15 km en genereer een voorbeeldroute. Sta locatietoegang toe voor een route vanaf jouw positie.</div><p class="small">Kaartgegevens © <a href="https://www.openstreetmap.org/copyright" style="color:inherit">OpenStreetMap-bijdragers</a>. Routes via OSRM. Controleer de route ter plaatse: paden, oversteekplaatsen en toegankelijkheid kunnen veranderen.</p></section><footer>Weergegevens via <a href="https://open-meteo.com/" style="color:inherit">Open-Meteo</a> · Automatische update iedere 15 minuten</footer></main>
+<script>
+(()=>{const $=id=>document.getElementById(id);const fallback={lat:53.2012,lon:5.7999,label:"Leeuwarden (standaardlocatie)"};let place={...fallback};try{const saved=localStorage.getItem("hardloopweer-location");if(saved){const p=JSON.parse(saved);if(Number.isFinite(p.lat)&&Number.isFinite(p.lon)){place={lat:p.lat,lon:p.lon,label:"Jouw opgeslagen locatie"};$("locate").hidden=true;}}}catch(e){}const dirs=["Noord","Noordoost","Oost","Zuidoost","Zuid","Zuidwest","West","Noordwest"],abbr=["N","NO","O","ZO","Z","ZW","W","NW"];
+function direction(deg){let i=Math.round((((deg%360)+360)%360)/45)%8;return{name:dirs[i],abbr:abbr[i],index:i}}
+function bf(v){return v<1?0:v<6?1:v<12?2:v<20?3:v<29?4:v<39?5:v<50?6:v<62?7:v<75?8:v<89?9:v<103?10:v<118?11:12}
+function clothes(t){if(t>15)return"Korte broek en shirt.";if(t>10)return"Korte broek en vest.";if(t>5)return"Thermo-ondergoed, vest en handschoenen.";if(t>0)return"Thermo-ondergoed, vest, handschoenen en een kol.";return"Thermo-ondergoed, vest, handschoenen, een kol en een thermoshirt."}
+function locate(){let b=$("locate");if(!navigator.geolocation){showLocError("Je browser ondersteunt geen locatiebepaling. Leeuwarden blijft actief.");return}b.disabled=true;b.textContent="Locatie zoeken…";navigator.geolocation.getCurrentPosition(p=>{b.disabled=false;b.textContent="◎ Gebruik mijn locatie";place={lat:p.coords.latitude,lon:p.coords.longitude,label:"Jouw opgeslagen locatie"};try{localStorage.setItem("hardloopweer-location",JSON.stringify({lat:place.lat,lon:place.lon}));}catch(e){}$("locationLabel").textContent=place.label;b.hidden=true;load()},e=>{b.disabled=false;b.textContent="◎ Gebruik mijn locatie";showLocError(e.code===1?"Geen toestemming voor locatie. Pas dit aan in Safari-instellingen; Leeuwarden blijft actief.":"Locatie niet gevonden. Controleer de locatietoestemming; Leeuwarden blijft actief.")},{enableHighAccuracy:false,timeout:12000,maximumAge:300000})}
+function showLocError(s){$("error").textContent=s;$("error").style.display="block"}
+async function load(){let b=$("refresh"),e=$("error");b.disabled=true;b.textContent="Bezig…";e.style.display="none";let ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),12000);try{let q=new URLSearchParams({latitude:place.lat,longitude:place.lon,current:"temperature_2m,wind_speed_10m,wind_direction_10m,precipitation",wind_speed_unit:"kmh",timezone:"auto"});let r=await fetch("https://api.open-meteo.com/v1/forecast?"+q,{cache:"no-store",signal:ctl.signal});if(!r.ok)throw Error("Weerbron gaf foutcode "+r.status);let c=(await r.json()).current;if(!c)throw Error("Geen actuele metingen ontvangen");let t=+c.temperature_2m,w=+c.wind_speed_10m,rain=+c.precipitation,f=bf(w),wd=+c.wind_direction_10m;
+$("temp").textContent=t.toFixed(1)+" °C";$("wind").textContent=Math.round(w)+" km/u";$("bf").textContent=f;$("rain").textContent=rain.toFixed(1)+" mm";$("clothes").textContent=clothes(t);
+if(f<=1){$("verdict").textContent="🌿 Goed hardloopweer";$("note").textContent="Weinig wind: fijne omstandigheden om te gaan hardlopen."}else if(f<=3){$("verdict").textContent="🏃 Prima hardloopweer";$("note").textContent="Er staat wat wind, maar de omstandigheden zijn doorgaans prima."}else{$("verdict").textContent="💨 Houd rekening met de wind";$("note").textContent="Windkracht "+f+" Beaufort kan merkbaar meer weerstand geven."}
+if(w<2||!Number.isFinite(wd)){$("runDirection").textContent="Geen duidelijke voorkeur";$("runAbbr").textContent="—";$("directionNote").textContent="Kies zelf een route die prettig loopt.";$("windFrom").textContent="Er staat te weinig wind om een looprichting aan te bevelen.";$("needle").setAttribute("transform","rotate(0 56 56)")}else{let from=direction(wd),to=direction(wd+180);$("runDirection").textContent=to.name;$("runAbbr").textContent=to.abbr;$("directionNote").textContent="Loop richting "+to.name+" om de wind zo veel mogelijk in je rug te hebben.";$("windFrom").textContent="Wind komt uit het "+from.name+" ("+Math.round(wd)+"°) en waait richting het "+to.name+".";$("needle").setAttribute("transform","rotate("+(wd+180)+" 56 56)")}
+$("updated").textContent="Laatste meting: "+(c.time?new Date(c.time).toLocaleTimeString("nl-NL",{hour:"2-digit",minute:"2-digit"}):new Date().toLocaleTimeString("nl-NL"))+" · "+place.label;
+}catch(x){$("verdict").textContent="Weer niet beschikbaar";$("note").textContent="De pagina werkt, maar kon de actuele weersgegevens niet ophalen.";e.textContent=x.name==="AbortError"?"Ophalen duurde langer dan 12 seconden. Probeer opnieuw.":"Ophalen mislukt. Controleer je internetverbinding en probeer opnieuw. ("+x.message+")";e.style.display="block"}finally{clearTimeout(timer);b.disabled=false;b.textContent="↻ Vernieuw weer"}}
+let selectedKm=5,routeMap=null,routeLayer=null,startMarker=null;
+function loadLeaflet(){if(window.L)return Promise.resolve();return new Promise((resolve,reject)=>{const sources=["https://unpkg.com/leaflet@1.9.4/dist/leaflet.js","https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"];let i=0;function next(){if(window.L){resolve();return}if(i>=sources.length){reject(Error("De kaartbibliotheek kon niet worden geladen via beide bronnen. Controleer je internetverbinding of contentblocker."));return}const s=document.createElement("script");s.src=sources[i++];s.onload=()=>window.L?resolve():next();s.onerror=next;document.head.appendChild(s)}next()})}
+function initMap(){if(!window.L)return;routeMap=L.map("routeMap").setView([place.lat,place.lon],13);L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"&copy; OpenStreetMap-bijdragers"}).addTo(routeMap);routeMap.setView([place.lat,place.lon],13);setTimeout(()=>routeMap.invalidateSize(),250)}
+function destination(lat,lon,distance,bearing){const R=6371000,br=bearing*Math.PI/180,p1=lat*Math.PI/180,l1=lon*Math.PI/180,d=distance/R;const p2=Math.asin(Math.sin(p1)*Math.cos(d)+Math.cos(p1)*Math.sin(d)*Math.cos(br));const l2=l1+Math.atan2(Math.sin(br)*Math.sin(d)*Math.cos(p1),Math.cos(d)-Math.sin(p1)*Math.sin(p2));return[p2*180/Math.PI,l2*180/Math.PI]}
+let routeGeneration=0;
+async function generateRoute(){
+ const btn=$("makeRoute");btn.disabled=true;btn.textContent="Route maken…";$("routeInfo").textContent="Een echt rondje wordt berekend…";
+ try{
+  if(!window.L||!routeMap)throw Error("De kaart is nog niet klaar. Probeer opnieuw.");
+  const attempt=++routeGeneration,target=selectedKm,tolerance=1;
+  const baseAngle=(attempt*47+Math.random()*360)%360;
+  const factors=[0.78,0.88,0.98,1.08,1.18,0.68,1.28,0.93];
+  let best=null;
+  for(let n=0;n<factors.length;n++){
+   const radius=(target*1000/(2*Math.PI+2))*factors[n];
+   const centerBearing=(baseAngle+n*43)%360;
+   const center=destination(place.lat,place.lon,radius,centerBearing);
+   const startBearing=(centerBearing+180)%360;
+   const direction=(n%2===0)?1:-1;
+   const coords=[[place.lon,place.lat]];
+   for(let j=1;j<8;j++){
+    const p=destination(center[0],center[1],radius,(startBearing+direction*j*45+360)%360);
+    coords.push([p[1],p[0]]);
+   }
+   coords.push([place.lon,place.lat]);
+   const coordinateString=coords.map(p=>p.join(",")).join(";");
+   const url="https://routing.openstreetmap.de/routed-foot/route/v1/driving/"+coordinateString+"?overview=full&geometries=geojson&steps=false";
+   try{
+    const response=await fetch(url);if(!response.ok)continue;
+    const data=await response.json();if(data.code!=="Ok"||!data.routes?.length)continue;
+    const route=data.routes[0],geometry=route.geometry?.coordinates,km=route.distance/1000;
+    if(!geometry||geometry.length<12)continue;
+    const first=geometry[0],last=geometry[geometry.length-1];
+    const endpointGap=Math.hypot((first[0]-last[0])*111000*Math.cos(place.lat*Math.PI/180),(first[1]-last[1])*111000);
+    if(endpointGap>30)continue;
+    const edges=new Set();let duplicateEdges=0,validEdges=0;
+    for(let k=1;k<geometry.length;k++){
+     const a=geometry[k-1],b=geometry[k];
+     const qa=a.map(v=>Math.round(v*100000)).join(","),qb=b.map(v=>Math.round(v*100000)).join(",");
+     if(qa===qb)continue;
+     const key=qa<qb?qa+"|"+qb:qb+"|"+qa;validEdges++;
+     if(edges.has(key))duplicateEdges++;else edges.add(key);
+    }
+    const overlap=validEdges?duplicateEdges/validEdges:1;
+    if(overlap>0.12)continue;
+    const candidate={route,km,overlap};
+    if(!best||Math.abs(km-target)<Math.abs(best.km-target))best=candidate;
+    if(Math.abs(km-target)<=tolerance&&overlap<0.04)break;
+   }catch(e){continue}
+  }
+  if(!best)throw Error("Geen bruikbaar rondje gevonden zonder veel dubbele stukken. Probeer opnieuw of kies een andere afstand.");
+  if(Math.abs(best.km-target)>tolerance)throw Error("Er is geen rondje gevonden tussen "+(target-tolerance)+" en "+(target+tolerance)+" km. De planner heeft ongeschikte routes met grote omwegen of dubbele stukken overgeslagen.");
+  const latlngs=best.route.geometry.coordinates.map(p=>[p[1],p[0]]);
+  if(routeLayer)routeMap.removeLayer(routeLayer);if(startMarker)routeMap.removeLayer(startMarker);
+  routeLayer=L.polyline(latlngs,{color:"#159b78",weight:5,opacity:.9}).addTo(routeMap);
+  startMarker=L.marker([place.lat,place.lon]).addTo(routeMap).bindPopup("Start / finish");
+  routeMap.fitBounds(routeLayer.getBounds(),{padding:[24,24]});
+  $("routeInfo").textContent="Rondje: "+best.km.toFixed(2)+" km (gekozen: "+target+" km). Start en finish bij je locatie. De route is gecontroleerd op dubbele wegsegmenten; een klein gedeeld stuk kan nodig zijn om terug te keren naar de start.";
+ }catch(e){$("routeInfo").textContent=e.message+" Probeer opnieuw; een andere routevariant kan wel beschikbaar zijn."}
+ finally{btn.disabled=false;btn.textContent="Genereer route"}
+}
+document.querySelectorAll(".route-choice").forEach(b=>b.addEventListener("click",()=>{selectedKm=Number(b.dataset.km);document.querySelectorAll(".route-choice").forEach(x=>x.classList.toggle("active",x===b));}));
+$("makeRoute").addEventListener("click",generateRoute);
+$("locate").addEventListener("click",locate);$("refresh").addEventListener("click",load);$("locationLabel").textContent=place.label==="Jouw opgeslagen locatie"?"Jouw opgeslagen locatie":"Standaardlocatie: Leeuwarden · stel je locatie één keer in";load();loadLeaflet().then(()=>{initMap();$("routeInfo").textContent="Kaart geladen. Kies een afstand en genereer je hardlooproute."}).catch(err=>{$("routeInfo").textContent=err.message+" De weerfunctie blijft beschikbaar; probeer eventueel een andere browser of schakel een contentblocker tijdelijk uit."});setInterval(load,900000)})();
+</script></body></html>
