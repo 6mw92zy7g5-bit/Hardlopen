@@ -50,10 +50,10 @@ async function generateRoute(){
   if(!window.L||!routeMap)throw Error("De kaart is nog niet klaar. Probeer opnieuw.");
   const attempt=++routeGeneration,target=selectedKm,tolerance=1;
   const baseAngle=(attempt*47+Math.random()*360)%360;
-  const factors=[0.68,0.82,0.96,1.10,1.24,0.56,1.36,0.90];
+  const factors=[0.78,0.88,0.98,1.08,1.18,0.68,1.28,0.93];
   let best=null;
   for(let n=0;n<factors.length;n++){
-   const radius=(target*1000/(2*Math.PI))*factors[n];
+   const radius=(target*1000/(2*Math.PI+2))*factors[n];
    const centerBearing=(baseAngle+n*43)%360;
    const center=destination(place.lat,place.lon,radius,centerBearing);
    const startBearing=(centerBearing+180)%360;
